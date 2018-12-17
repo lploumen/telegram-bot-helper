@@ -7,10 +7,10 @@ namespace Telegram.Bot.Helper.Actions
     public class BotInline
     {
         public readonly InlineCommand Command;
-        public readonly Func<CallbackQueryInfo, string[], Verify, Task> Callback;
+        public readonly Func<CallbackQueryInfo, string[], Verify, Dictionary<string, string>, Task> Callback;
         public readonly Verify Verified;
 
-        public BotInline(Func<CallbackQueryInfo, string[], Verify, Task> callback, string command, string separator, Verify verified)
+        public BotInline(Func<CallbackQueryInfo, string[], Verify, Dictionary<string, string>, Task> callback, string command, string separator, Verify verified)
         {
             Command = new InlineCommand(command, separator);
             Callback = callback;
@@ -19,15 +19,17 @@ namespace Telegram.Bot.Helper.Actions
 
         public class Builder
         {
-            public readonly List<BotInline> Callbacks;
-            internal Builder(ref List<BotInline> callbacks)
+            private readonly List<BotInline> _callbacks;
+            private readonly string _separator;
+
+            internal Builder(ref List<BotInline> callbacks, string separator)
             {
-                Callbacks = callbacks;
+                _callbacks = callbacks;
             }
 
-            public Func<CallbackQueryInfo, string[], Verify, Task> this[string command, Verify verified = Verify.Unchecked]
+            public Func<CallbackQueryInfo, string[], Verify, Dictionary<string, string>, Task> this[string command, Verify verified = Verify.Unchecked]
             {
-                set => Callbacks.Add(new BotInline(value, command, TelegramBotHelper.Separator, verified));
+                set => _callbacks.Add(new BotInline(value, command, _separator, verified));
             }
         }
     }

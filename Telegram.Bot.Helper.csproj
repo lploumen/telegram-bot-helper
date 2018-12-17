@@ -1,9 +1,9 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>netstandard1.1</TargetFramework>
+    <TargetFramework>netstandard2.0</TargetFramework>
     <LangVersion>7.3</LangVersion>
-    <Version>1.0.3</Version>
+    <Version>1.1.0</Version>
     <Authors>Vova Lantsov</Authors>
     <PackageLicenseUrl>https://github.com/vova-lantsov-dev/telegram-bot-helper/blob/master/LICENSE</PackageLicenseUrl>
     <Description>Reduce development time with helper for Telegram.Bot library.</Description>
@@ -18,6 +18,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="12.0.1" />
+    <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     <PackageReference Include="Telegram.Bot" Version="14.10.0" />
   </ItemGroup>
 
