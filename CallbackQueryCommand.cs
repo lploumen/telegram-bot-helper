@@ -3,9 +3,9 @@
 namespace Telegram.Bot.Helper
 {
     /// <summary>
-    /// Inline command is callback data of inline button. This command is split by selected separator.
+    /// Callback query command is callback data of inline button.
     /// </summary>
-    public class InlineCommand
+    public class CallbackQueryCommand
     {
         /// <summary>
         /// Count of commands
@@ -13,16 +13,16 @@ namespace Telegram.Bot.Helper
         public int Count => Commands.Length;
 
         /// <summary>
-        /// Commands parsed from callback data
+        /// Commands separated from callback data
         /// </summary>
         public readonly string[] Commands;
 
-        internal InlineCommand(string command, string separator)
+        internal CallbackQueryCommand(string command, char separator)
         {
             Commands = command.Split(new[] { separator }, StringSplitOptions.None);
         }
 
-        public bool Equals(InlineCommand valueToCompareWith)
+        internal bool Equals(CallbackQueryCommand valueToCompareWith)
         {
             if (valueToCompareWith == null || Count != valueToCompareWith.Count)
                 return false;

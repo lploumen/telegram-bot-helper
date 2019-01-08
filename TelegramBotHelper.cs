@@ -1,38 +1,39 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
+using System.IO;
+using System.Reflection;
 using System.Threading.Tasks;
-using Telegram.Bot.Helper.Actions;
+using Telegram.Bot.Helper.HandlerBuilders;
+using Telegram.Bot.Helper.Handlers;
 using Telegram.Bot.Helper.Languages;
+using Telegram.Bot.Helper.Localization;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
 namespace Telegram.Bot.Helper
 {
-    public class TelegramBotHelper
+    /// <summary>
+    /// Telegram bot helper
+    /// </summary>
+    /// <typeparam name="TLocalizationModel">Class that contains localization fields</typeparam>
+    public class TelegramBotHelper<TLocalizationModel> where TLocalizationModel : class, new()
     {
         /// <summary>
-        /// Callback data separator. Default is "~". You can change it in constructor.
+        /// Callback data separator. Default is '~'. You can change it in constructor.
         /// </summary>
-        public readonly string Separator;
+        public readonly char Separator;
 
         /// <summary>
-        /// Telegram client
+        /// Original instance of telegram client
         /// </summary>
         public readonly TelegramBotClient Client;
 
-        private List<BotInline> _inlineCallbacks = new List<BotInline>();
-        private List<BotTextMessage> _messageCallbacks = new List<BotTextMessage>();
-        private List<BotExpression> _expressionCallbacks = new List<BotExpression>();
+        private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbackQueryFunctions = new List<CallbackQueryHandler<TLocalizationModel>>();
+        private readonly List<TextMessageHandler<TLocalizationModel>> _textMessageCallbacks = new List<TextMessageHandler<TLocalizationModel>>();
+        private readonly List<MessageExpressionHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageExpressionHandler<TLocalizationModel>>();
 
-        private Dictionary<string, Dictionary<string, string>> _localizationManagers = new Dictionary<string, Dictionary<string, string>>();
+        private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
         private readonly LocalizationOptions _localizationOptions;
-
-        /// <summary>
-        /// You can create your own update handler using this delegate.
-        /// </summary>
-        public Func<Update, List<BotInline>, List<BotTextMessage>, List<BotExpression>,
-            Dictionary<string, Dictionary<string, string>>, Task> CustomUpdateReceived;
 
         /// <summary>
         /// Verify user on every incoming message. If null, all verify statuses will be set to Unchecked.
@@ -40,88 +41,68 @@ namespace Telegram.Bot.Helper
         public Func<User, Task<Verify>> Verifying;
 
         /// <summary>
-        /// Use this delegate to change user's current language.
+        /// Use this delegate to change user's IETF language code.
         /// </summary>
-        public Func<User, Task<string>> LanguageSelection;
+        public Func<User, Task<string>> SelectLanguage;
 
         /// <summary>
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
         /// <param name="initializer">Initialize TelegramBotClient to use by helper</param>
-        /// <param name="localizationOptions">Localization options. Use null to disable localization.</param>
-        /// <param name="separator">Separator which will be used to split callback query data. Default is "~".</param>
-        public TelegramBotHelper(Func<TelegramBotClient> initializer, LocalizationOptions localizationOptions = null, string separator = "~")
+        /// <param name="localizationOptions">Localization options. If null, will be used 'en' as default localization key.</param>
+        /// <param name="separator">Separator which will be used to split callback query data.</param>
+        public TelegramBotHelper(Func<TelegramBotClient> initializer, LocalizationOptions localizationOptions, char separator = '~')
         {
             if (initializer == null)
-                throw new ArgumentNullException("initializer");
-            if (string.IsNullOrWhiteSpace(separator))
-                throw new ArgumentException("Separator cannot be null, empty string or white-spaces", "separator");
+                throw new ArgumentNullException(nameof(initializer));
+
+            Separator = separator;
+            _localizationOptions = localizationOptions ?? throw new ArgumentNullException(nameof(localizationOptions));
+            if (_localizationOptions.DefaultLocalizationKey == null)
+                throw new ArgumentNullException(nameof(_localizationOptions.DefaultLocalizationKey));
 
             Client = initializer();
             if (Client == null)
-                throw new ArgumentException("Initializer must not return null", "initializer");
-
-            Separator = separator;
-            _localizationOptions = localizationOptions;
+                throw new ArgumentException("Initializer must not return null", nameof(initializer));
         }
 
         /// <summary>
-        /// Adding localization data from json files using specified language codes
+        /// Add localization models from directory where executing (.exe) file was started
         /// </summary>
-        /// <param name="basePath">Base path of directory where all files are placed</param>
-        /// <param name="languageCodes">All language codes to add. If language code is en-US, it will search for en-US.json file in basePath directory.</param>
-        public void AddLocalizationFromJsonFiles(string basePath, params string[] languageCodes)
+        public void AddJsonLocalizationFromCurrentDirectory()
         {
-            if (_localizationOptions == null)
-                throw new NotSupportedException("Localization is disabled. You can enable it using localizationOptions parameter in constructor.");
-
-            foreach (var languageCode in languageCodes)
-            {
-                if (_localizationManagers.ContainsKey(languageCode))
-                    throw new ArgumentException($"Localization for {languageCode} already exists.", "languageCode");
-                
-                _localizationManagers[languageCode] = BotLocalizationManagerExtensions.ReadLocalizationDataFromFile(basePath, languageCode, null);
-            }
+            AddJsonLocalization(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location));
         }
 
         /// <summary>
-        /// Adding localization data from json files using specified language codes and file encoding
+        /// Add localization models from custom directory path
         /// </summary>
-        /// <param name="basePath">Base path of directory where all files are placed</param>
-        /// <param name="enc">File encoding</param>
-        /// <param name="languageCodes">All language codes to add. If language code is en-US, it will search for en-US.json file in basePath directory.</param>
-        public void AddLocalizationFromJsonFiles(string basePath, Encoding enc, params string[] languageCodes)
+        /// <param name="directoryPath">Path to directory where all json files are placed</param>
+        public void AddJsonLocalization(string directoryPath)
         {
-            if (_localizationOptions == null)
-                throw new NotSupportedException("Localization is disabled. You can enable it using localizationOptions parameter in constructor.");
+            var mapper = new LocalizationMapper<TLocalizationModel>(directoryPath);
 
-            foreach (var languageCode in languageCodes)
-            {
-                if (_localizationManagers.ContainsKey(languageCode))
-                    throw new ArgumentException($"Localization for {languageCode} already exists.", "languageCode");
-
-                _localizationManagers[languageCode] = BotLocalizationManagerExtensions.ReadLocalizationDataFromFile(basePath, languageCode, enc);
-            }
+            foreach (var (key, value) in mapper.GetLocalizationModels())
+                _localizationModels.Add(key, value);
         }
 
         /// <summary>
-        /// Adding localization data as dictionary using specified language code
+        /// Add localization model manually
         /// </summary>
-        /// <param name="languageCode">Language code to add.</param>
-        public void AddLocalization(string languageCode, Dictionary<string, string> data)
+        /// <param name="languageCode">IETF language code to add (ru, en, de, ...)</param>
+        /// <param name="localizationModel">Model that contains localization for specified language</param>
+        public void AddLocalizationModel(string languageCode, TLocalizationModel localizationModel)
         {
-            if (_localizationOptions == null)
-                throw new NotSupportedException("Localization is disabled. You can enable it using localizationOptions parameter in constructor.");
             if (string.IsNullOrWhiteSpace(languageCode))
                 throw new ArgumentException("Language code can't be null, empty or white-spaces", "languageCode");
-            if (_localizationManagers.ContainsKey(languageCode))
+            if (_localizationModels.ContainsKey(languageCode))
                 throw new ArgumentException("Localization for this language code already exists.", "languageCode");
 
-            _localizationManagers[languageCode] = data ?? throw new ArgumentNullException("data");
+            _localizationModels.Add(languageCode, localizationModel ?? throw new ArgumentNullException("localizationModel"));
         }
 
         /// <summary>
-        /// Process new telegram update.
+        /// Process incoming update
         /// </summary>
         /// <param name="update">Incoming update</param>
         public async Task UpdateReceived(Update update)
@@ -129,41 +110,23 @@ namespace Telegram.Bot.Helper
             if (update == null)
                 return;
 
-            if (CustomUpdateReceived != null)
-            {
-                await CustomUpdateReceived(update,
-                    _inlineCallbacks,
-                    _messageCallbacks,
-                    _expressionCallbacks,
-                    _localizationOptions != null ? _localizationManagers : null);
-                return;
-            }
-
-            Dictionary<string, string> languageDictionary = null;
+            TLocalizationModel localizationModel = null;
 
             switch (update.Type)
             {
                 case UpdateType.Message:
                     {
                         var message = update.Message;
-                        if (message == null)
-                            return;
 
-                        if (_localizationOptions != null)
-                        {
-                            var lang = LanguageSelection == null
-                                ? message.From.LanguageCode
-                                : await LanguageSelection(message.From);
+                        var lang = SelectLanguage == null
+                            ? message.From.LanguageCode
+                            : await SelectLanguage(message.From);
+                        
+                        if (lang == null || !_localizationModels.ContainsKey(lang))
+                            lang = _localizationOptions.DefaultLocalizationKey;
 
-                            if (string.IsNullOrWhiteSpace(lang) || !_localizationManagers.ContainsKey(lang))
-                            {
-                                if (!_localizationManagers.ContainsKey(_localizationOptions.DefaultLocalizationKey))
-                                    throw new KeyNotFoundException("Default language key was not found in dictionary");
-
-                                lang = _localizationOptions.DefaultLocalizationKey;
-                            }
-                            languageDictionary = _localizationManagers[lang];
-                        }
+                        if (!_localizationModels.TryGetValue(lang, out localizationModel))
+                            throw new KeyNotFoundException($"Language code '{lang}' was not found");
 
                         var v = Verifying != null
                             ? await Verifying(message.From)
@@ -173,17 +136,18 @@ namespace Telegram.Bot.Helper
                         {
                             case MessageType.Text:
                                 {
-                                    if (_messageCallbacks.Count == 0)
+                                    if (_textMessageCallbacks.Count == 0)
                                         goto default;
 
-                                    BotTextMessage mCb = mCb = _messageCallbacks.Find(it => it.Message == message.Text);
-                                    if (mCb == null && languageDictionary != null)
-                                        mCb = _messageCallbacks.Find(it => languageDictionary.TryGetValue(it.Message, out var mesVal)
-                                            && message.Text == mesVal);
+                                    var mCb = _textMessageCallbacks.Find(it =>
+                                    {
+                                        var value = it.Message.Compile();
+                                        return value(localizationModel) == message.Text;
+                                    });
                                     if (mCb != default)
                                     {
                                         if (mCb.Verified == Verify.Unchecked || mCb.Verified.HasFlag(v))
-                                            await mCb.Callback(message, v, languageDictionary);
+                                            await mCb.Callback(message, v, localizationModel);
                                         break;
                                     }
 
@@ -191,16 +155,16 @@ namespace Telegram.Bot.Helper
                                 }
                             default:
                                 {
-                                    foreach (var expressionCallback in _expressionCallbacks)
+                                    foreach (var messageExpressionCallback in _messageExpressionCallbacks)
                                     {
-                                        if (!expressionCallback.Expression(message))
+                                        if (!messageExpressionCallback.Expression(message))
                                             continue;
 
-                                        if (expressionCallback.Verified != Verify.Unchecked
-                                            && !expressionCallback.Verified.HasFlag(v))
+                                        if (messageExpressionCallback.Verified != Verify.Unchecked
+                                            && !messageExpressionCallback.Verified.HasFlag(v))
                                             continue;
 
-                                        await expressionCallback.Callback(message, v, languageDictionary);
+                                        await messageExpressionCallback.Callback(message, v, localizationModel);
                                     }
                                     break;
                                 }
@@ -210,38 +174,30 @@ namespace Telegram.Bot.Helper
                 case UpdateType.CallbackQuery:
                     {
                         var q = update.CallbackQuery;
+                        
+                        var message = q.Message;
+                        var lang = SelectLanguage == null
+                            ? message.From.LanguageCode
+                            : await SelectLanguage(message.From);
+
+                        if (lang == null || !_localizationModels.ContainsKey(lang))
+                            lang = _localizationOptions.DefaultLocalizationKey;
+
+                        if (!_localizationModels.TryGetValue(lang, out localizationModel))
+                            throw new KeyNotFoundException($"Language code '{lang}' was not found");
+
                         var v = Verifying != null
                             ? await Verifying(q.From)
                             : Verify.Unchecked;
 
-                        if (_localizationOptions != null)
+                        var c = new CallbackQueryCommand(q.Data, Separator);
+                        foreach (var callbackQueryFunction in _callbackQueryFunctions)
                         {
-                            var message = q.Message;
-                            var lang = LanguageSelection == null
-                                ? message.From.LanguageCode
-                                : await LanguageSelection(message.From);
-
-                            if (string.IsNullOrWhiteSpace(lang) || !_localizationManagers.ContainsKey(lang))
-                            {
-                                if (!_localizationManagers.ContainsKey(_localizationOptions.DefaultLocalizationKey))
-                                    throw new KeyNotFoundException("Default language key was not found in dictionary");
-
-                                lang = _localizationOptions.DefaultLocalizationKey;
-                            }
-                            languageDictionary = _localizationManagers[lang];
-                        }
-
-                        var c = new InlineCommand(q.Data, Separator);
-                        foreach (var inlineCallback in _inlineCallbacks)
-                        {
-                            if (!c.Equals(inlineCallback.Command))
+                            if (!c.Equals(callbackQueryFunction.Command))
                                 continue;
 
-                            if (inlineCallback.Verified == Verify.Unchecked || inlineCallback.Verified.HasFlag(v))
-                            {
-                                await inlineCallback.Callback(new CallbackQueryInfo(q), c.Commands, v, languageDictionary);
-                                break;
-                            }
+                            if (callbackQueryFunction.Verified == Verify.Unchecked || callbackQueryFunction.Verified.HasFlag(v))
+                                await callbackQueryFunction.Callback(new CallbackQueryInfo(q), c.Commands, v, localizationModel);
                         }
                         break;
                     }
@@ -249,37 +205,27 @@ namespace Telegram.Bot.Helper
         }
 
         /// <summary>
-        /// Inline handlers
+        /// CallbackQuery handlers
         /// </summary>
-        public void Inlines(Action<BotInline.Builder> builder)
+        public void CallbackQueries(Action<CallbackQueryHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new BotInline.Builder(ref _inlineCallbacks, Separator));
+            builder(new CallbackQueryHandlerBuilder<TLocalizationModel>(_callbackQueryFunctions, Separator));
         }
 
         /// <summary>
-        /// Message handlers
+        /// Text message handlers
         /// </summary>
-        public void Messages(Action<BotTextMessage.Builder> builder)
+        public void TextMessages(Action<TextMessageHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new BotTextMessage.Builder(ref _messageCallbacks));
+            builder(new TextMessageHandlerBuilder<TLocalizationModel>(_textMessageCallbacks));
         }
 
         /// <summary>
-        /// Expression handlers
+        /// Expression handlers for messages
         /// </summary>
-        public void Expressions(Action<BotExpression.Builder> builder)
+        public void MessageExpressions(Action<MessageExpressionHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new BotExpression.Builder(ref _expressionCallbacks));
-        }
-
-        /// <summary>
-        /// All handlers together (messages, inlines, expressions)
-        /// </summary>
-        public void Handlers(Action<BotTextMessage.Builder, BotInline.Builder, BotExpression.Builder> builder)
-        {
-            builder(new BotTextMessage.Builder(ref _messageCallbacks),
-                new BotInline.Builder(ref _inlineCallbacks, Separator),
-                new BotExpression.Builder(ref _expressionCallbacks));
+            builder(new MessageExpressionHandlerBuilder<TLocalizationModel>(_messageExpressionCallbacks));
         }
     }
 }
