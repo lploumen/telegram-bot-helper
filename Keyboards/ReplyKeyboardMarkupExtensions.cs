@@ -6,42 +6,50 @@ namespace Telegram.Bot.Helper.Keyboards
 {
     public static class ReplyKeyboardMarkupExtensions
     {
-        #region Build
-
         /// <summary>
-        /// Add button to the keyboard.
+        /// Add button with specified text to the keyboard.
         /// </summary>
-        /// <param name="text">Button's text. Not null.</param>
-        /// <param name="requestContact">True if button should send user's contact on click</param>
-        /// <param name="requestLocation">True if button should send user's current location on click</param>
-        public static Builder<KeyboardButton> B(this Builder<KeyboardButton> builder, string text, bool requestContact = false, bool requestLocation = false)
+        /// <param name="text">Text on button. Not null.</param>
+        public static Builder<KeyboardButton> Text(this Builder<KeyboardButton> builder, string text)
         {
             if (builder == null)
                 throw new ArgumentNullException("builder");
             if (text == null)
                 throw new ArgumentNullException("text");
 
-            builder.Keyboard[builder.Index].Add(new KeyboardButton { Text = text, RequestContact = requestContact, RequestLocation = requestLocation });
+            builder.Keyboard[builder.Index].Add(new KeyboardButton(text));
             return builder;
         }
 
         /// <summary>
-        /// Add button to the keyboard.
+        /// Add button which will request user's contact to the keyboard.
         /// </summary>
-        public static Builder<KeyboardButton> B(this Builder<KeyboardButton> builder, KeyboardButton button)
+        /// <param name="text">Text on button. Not null.</param>
+        public static Builder<KeyboardButton> Contact(this Builder<KeyboardButton> builder, string text)
         {
             if (builder == null)
                 throw new ArgumentNullException("builder");
-            if (button == null)
-                throw new ArgumentNullException("button");
+            if (text == null)
+                throw new ArgumentNullException("text");
 
-            builder.Keyboard[builder.Index].Add(button);
+            builder.Keyboard[builder.Index].Add(new KeyboardButton(text) { RequestContact = true });
             return builder;
         }
 
-        #endregion
+        /// <summary>
+        /// Add button which will request user's current location to the keyboard.
+        /// </summary>
+        /// <param name="text">Text on button. Not null.</param>
+        public static Builder<KeyboardButton> Location(this Builder<KeyboardButton> builder, string text)
+        {
+            if (builder == null)
+                throw new ArgumentNullException("builder");
+            if (text == null)
+                throw new ArgumentNullException("text");
 
-        #region Markup
+            builder.Keyboard[builder.Index].Add(new KeyboardButton(text) { RequestLocation = true });
+            return builder;
+        }
 
         /// <summary>
         /// Build markup
@@ -86,7 +94,5 @@ namespace Telegram.Bot.Helper.Keyboards
             markup.OneTimeKeyboard = value;
             return markup;
         }
-
-        #endregion
     }
 }
