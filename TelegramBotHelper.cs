@@ -7,8 +7,10 @@ using Telegram.Bot.Helper.HandlerBuilders;
 using Telegram.Bot.Helper.Handlers;
 using Telegram.Bot.Helper.Languages;
 using Telegram.Bot.Helper.Localization;
+using Telegram.Bot.Helper.Sniffer;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.Payments;
 
 namespace Telegram.Bot.Helper
 {
@@ -35,6 +37,8 @@ namespace Telegram.Bot.Helper
         private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
         private readonly LocalizationOptions _localizationOptions;
 
+        private readonly Dictionary<int, List<ISniffer>> _sniffers = new Dictionary<int, List<ISniffer>>();
+
         /// <summary>
         /// Verify user on every incoming message. If null, all verify statuses will be set to Unchecked.
         /// </summary>
@@ -44,6 +48,26 @@ namespace Telegram.Bot.Helper
         /// Use this delegate to change user's IETF language code.
         /// </summary>
         public Func<User, Task<string>> SelectLanguage;
+
+        /// <summary>
+        /// Use this delegate to receive incoming InlineQuery updates
+        /// </summary>
+        public Func<InlineQuery, Verify, TLocalizationModel, Task> ReceivedInlineQuery;
+
+        /// <summary>
+        /// Use this delegate to receive incoming ChosenInlineResult updates
+        /// </summary>
+        public Func<ChosenInlineResult, Verify, TLocalizationModel, Task> ReceivedInlineResult;
+
+        /// <summary>
+        /// Use this delegate to receive incoming PreCheckoutQuery updates
+        /// </summary>
+        public Func<PreCheckoutQuery, Verify, TLocalizationModel, Task> ReceivedPreCheckoutQuery;
+
+        /// <summary>
+        /// Use this delegate to receive incoming ShippingQuery updates
+        /// </summary>
+        public Func<ShippingQuery, Verify, TLocalizationModel, Task> ReceivedShippingQuery;
 
         /// <summary>
         /// Create new instance of TelegramBotHelper class.
@@ -64,6 +88,9 @@ namespace Telegram.Bot.Helper
             Client = initializer();
             if (Client == null)
                 throw new ArgumentException("Initializer must not return null", nameof(initializer));
+
+            Client.OnUpdate += async (sender, e) =>
+                await UpdateReceived(e.Update);
         }
 
         /// <summary>
@@ -94,11 +121,21 @@ namespace Telegram.Bot.Helper
         public void AddLocalizationModel(string languageCode, TLocalizationModel localizationModel)
         {
             if (string.IsNullOrWhiteSpace(languageCode))
-                throw new ArgumentException("Language code can't be null, empty or white-spaces", "languageCode");
+                throw new ArgumentException("Language code can't be null, empty or white-spaces", nameof(languageCode));
             if (_localizationModels.ContainsKey(languageCode))
-                throw new ArgumentException("Localization for this language code already exists.", "languageCode");
+                throw new ArgumentException("Localization for this language code already exists.", nameof(languageCode));
 
-            _localizationModels.Add(languageCode, localizationModel ?? throw new ArgumentNullException("localizationModel"));
+            _localizationModels.Add(languageCode, localizationModel ?? throw new ArgumentNullException(nameof(localizationModel)));
+        }
+
+        /// <summary>
+        /// Add sniffer for specified chat id
+        /// </summary>
+        public void AddSniffer(int userId, ISniffer sniffer)
+        {
+            if (_sniffers.ContainsKey(userId))
+                _sniffers[userId].Add(sniffer);
+            else _sniffers.Add(userId, new List<ISniffer> { sniffer });
         }
 
         /// <summary>
@@ -109,96 +146,130 @@ namespace Telegram.Bot.Helper
         {
             if (update == null)
                 return;
+            
+            User from;
+            switch (update.Type)
+            {
+                case UpdateType.CallbackQuery:
+                    from = update.CallbackQuery.From;
+                    break;
+                case UpdateType.ChannelPost:
+                    from = update.ChannelPost.From;
+                    break;
+                case UpdateType.ChosenInlineResult:
+                    from = update.ChosenInlineResult.From;
+                    break;
+                case UpdateType.EditedChannelPost:
+                    from = update.EditedChannelPost.From;
+                    break;
+                case UpdateType.EditedMessage:
+                    from = update.EditedMessage.From;
+                    break;
+                case UpdateType.InlineQuery:
+                    from = update.InlineQuery.From;
+                    break;
+                case UpdateType.Message:
+                    from = update.Message.From;
+                    break;
+                case UpdateType.PreCheckoutQuery:
+                    from = update.PreCheckoutQuery.From;
+                    break;
+                case UpdateType.ShippingQuery:
+                    from = update.ShippingQuery.From;
+                    break;
+                default: return;
+            }
 
-            TLocalizationModel localizationModel = null;
+            if (await _sniffers.RunSniffers(from.Id, update))
+                return;
+
+            var lang = SelectLanguage == null ? from?.LanguageCode : await SelectLanguage(from);
+
+            if (lang == null || !_localizationModels.ContainsKey(lang))
+                lang = _localizationOptions.DefaultLocalizationKey;
+
+            if (!_localizationModels.TryGetValue(lang, out var localizationModel))
+                throw new KeyNotFoundException($"Language code '{lang}' was not found");
+
+            var v = Verifying != null ? await Verifying(from) : Verify.Unchecked;
 
             switch (update.Type)
             {
+                case UpdateType.EditedMessage:
                 case UpdateType.Message:
+                case UpdateType.ChannelPost:
+                case UpdateType.EditedChannelPost:
                     {
-                        var message = update.Message;
-
-                        var lang = SelectLanguage == null
-                            ? message.From.LanguageCode
-                            : await SelectLanguage(message.From);
+                        Message message = update.Type == UpdateType.Message ? update.Message
+                            : update.Type == UpdateType.EditedMessage ? update.EditedMessage
+                            : update.Type == UpdateType.ChannelPost ? update.ChannelPost
+                            : update.EditedChannelPost;
                         
-                        if (lang == null || !_localizationModels.ContainsKey(lang))
-                            lang = _localizationOptions.DefaultLocalizationKey;
-
-                        if (!_localizationModels.TryGetValue(lang, out localizationModel))
-                            throw new KeyNotFoundException($"Language code '{lang}' was not found");
-
-                        var v = Verifying != null
-                            ? await Verifying(message.From)
-                            : Verify.Unchecked;
-
-                        switch (message.Type)
+                        if (message.Type == MessageType.Text && _textMessageCallbacks.Count > 0)
                         {
-                            case MessageType.Text:
-                                {
-                                    if (_textMessageCallbacks.Count == 0)
-                                        goto default;
+                            var mCb = _textMessageCallbacks.Find(it =>
+                            {
+                                var value = it.Message.Compile();
+                                return value(localizationModel) == message.Text;
+                            });
 
-                                    var mCb = _textMessageCallbacks.Find(it =>
-                                    {
-                                        var value = it.Message.Compile();
-                                        return value(localizationModel) == message.Text;
-                                    });
-                                    if (mCb != default)
-                                    {
-                                        if (mCb.Verified == Verify.Unchecked || mCb.Verified.HasFlag(v))
-                                            await mCb.Callback(message, v, localizationModel);
-                                        break;
-                                    }
-
-                                    goto default;
-                                }
-                            default:
-                                {
-                                    foreach (var messageExpressionCallback in _messageExpressionCallbacks)
-                                    {
-                                        if (!messageExpressionCallback.Expression(message))
-                                            continue;
-
-                                        if (messageExpressionCallback.Verified != Verify.Unchecked
-                                            && !messageExpressionCallback.Verified.HasFlag(v))
-                                            continue;
-
-                                        await messageExpressionCallback.Callback(message, v, localizationModel);
-                                    }
-                                    break;
-                                }
+                            if (mCb != default)
+                            {
+                                if (mCb.Verified == Verify.Unchecked || mCb.Verified.HasFlag(v))
+                                    await mCb.Callback(message, v, localizationModel);
+                                return;
+                            }
                         }
+
+                        foreach (var messageExpressionCallback in _messageExpressionCallbacks)
+                        {
+                            if (!messageExpressionCallback.Expression(message))
+                                continue;
+
+                            if (messageExpressionCallback.Verified != Verify.Unchecked
+                                && !messageExpressionCallback.Verified.HasFlag(v))
+                                continue;
+
+                            await messageExpressionCallback.Callback(message, v, localizationModel);
+                        }
+
                         break;
                     }
                 case UpdateType.CallbackQuery:
                     {
-                        var q = update.CallbackQuery;
-                        
-                        var message = q.Message;
-                        var lang = SelectLanguage == null
-                            ? message.From.LanguageCode
-                            : await SelectLanguage(message.From);
-
-                        if (lang == null || !_localizationModels.ContainsKey(lang))
-                            lang = _localizationOptions.DefaultLocalizationKey;
-
-                        if (!_localizationModels.TryGetValue(lang, out localizationModel))
-                            throw new KeyNotFoundException($"Language code '{lang}' was not found");
-
-                        var v = Verifying != null
-                            ? await Verifying(q.From)
-                            : Verify.Unchecked;
-
-                        var c = new CallbackQueryCommand(q.Data, Separator);
+                        var c = new CallbackQueryCommand(update.CallbackQuery.Data, Separator);
                         foreach (var callbackQueryFunction in _callbackQueryFunctions)
                         {
                             if (!c.Equals(callbackQueryFunction.Command))
                                 continue;
 
                             if (callbackQueryFunction.Verified == Verify.Unchecked || callbackQueryFunction.Verified.HasFlag(v))
-                                await callbackQueryFunction.Callback(new CallbackQueryInfo(q), c.Commands, v, localizationModel);
+                                await callbackQueryFunction.Callback(new CallbackQueryInfo(update.CallbackQuery), c.Commands, v, localizationModel);
                         }
+                        break;
+                    }
+                case UpdateType.InlineQuery:
+                    {
+                        if (ReceivedInlineQuery != null)
+                            await ReceivedInlineQuery(update.InlineQuery, v, localizationModel);
+                        break;
+                    }
+                case UpdateType.ChosenInlineResult:
+                    {
+                        if (ReceivedInlineResult != null)
+                            await ReceivedInlineResult(update.ChosenInlineResult, v, localizationModel);
+                        break;
+                    }
+                case UpdateType.PreCheckoutQuery:
+                    {
+                        if (ReceivedPreCheckoutQuery != null)
+                            await ReceivedPreCheckoutQuery(update.PreCheckoutQuery, v, localizationModel);
+                        break;
+                    }
+                case UpdateType.ShippingQuery:
+                    {
+                        if (ReceivedShippingQuery != null)
+                            await ReceivedShippingQuery(update.ShippingQuery, v, localizationModel);
                         break;
                     }
             }

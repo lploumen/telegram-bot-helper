@@ -13,9 +13,9 @@ namespace Telegram.Bot.Helper.Keyboards
         public static Builder<KeyboardButton> Text(this Builder<KeyboardButton> builder, string text)
         {
             if (builder == null)
-                throw new ArgumentNullException("builder");
+                throw new ArgumentNullException(nameof(builder));
             if (text == null)
-                throw new ArgumentNullException("text");
+                throw new ArgumentNullException(nameof(text));
 
             builder.Keyboard[builder.Index].Add(new KeyboardButton(text));
             return builder;
@@ -28,9 +28,9 @@ namespace Telegram.Bot.Helper.Keyboards
         public static Builder<KeyboardButton> Contact(this Builder<KeyboardButton> builder, string text)
         {
             if (builder == null)
-                throw new ArgumentNullException("builder");
+                throw new ArgumentNullException(nameof(builder));
             if (text == null)
-                throw new ArgumentNullException("text");
+                throw new ArgumentNullException(nameof(text));
 
             builder.Keyboard[builder.Index].Add(new KeyboardButton(text) { RequestContact = true });
             return builder;
@@ -43,34 +43,34 @@ namespace Telegram.Bot.Helper.Keyboards
         public static Builder<KeyboardButton> Location(this Builder<KeyboardButton> builder, string text)
         {
             if (builder == null)
-                throw new ArgumentNullException("builder");
+                throw new ArgumentNullException(nameof(builder));
             if (text == null)
-                throw new ArgumentNullException("text");
+                throw new ArgumentNullException(nameof(text));
 
             builder.Keyboard[builder.Index].Add(new KeyboardButton(text) { RequestLocation = true });
             return builder;
         }
 
         /// <summary>
-        /// Build markup
+        /// Build markup from keyboard
         /// </summary>
         public static ReplyKeyboardMarkup M(this IEnumerable<IEnumerable<KeyboardButton>> keyboard) =>
             new ReplyKeyboardMarkup(keyboard);
 
         /// <summary>
-        /// Build markup
+        /// Build markup from keyboard
         /// </summary>
         public static ReplyKeyboardMarkup M(this IEnumerable<KeyboardButton> keyboard) =>
             new ReplyKeyboardMarkup(keyboard);
 
         /// <summary>
-        /// Builds markup
+        /// Builds markup from keyboard
         /// </summary>
         public static ReplyKeyboardMarkup M(this KeyboardButton keyboard) =>
             new ReplyKeyboardMarkup(keyboard);
 
         /// <summary>
-        /// Build markup
+        /// Build markup from keyboard
         /// </summary>
         public static ReplyKeyboardMarkup M(this Builder<KeyboardButton> builder) =>
             new ReplyKeyboardMarkup(builder.Keyboard);

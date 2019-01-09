@@ -12,7 +12,7 @@ namespace Telegram.Bot.Helper.Localization
         
         internal LocalizationMapper(string directoryPath)
         {
-            _directoryPath = directoryPath ?? throw new ArgumentNullException("directoryPath");
+            _directoryPath = directoryPath ?? throw new ArgumentNullException(nameof(directoryPath));
         }
 
         internal IEnumerable<(string key, TLocalizationModel value)> GetLocalizationModels()
