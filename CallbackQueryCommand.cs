@@ -29,7 +29,7 @@ namespace Telegram.Bot.Helper
 
             for (int commandIndex = 0; commandIndex < Count; commandIndex++)
             {
-                if (string.IsNullOrWhiteSpace(Commands[commandIndex]))
+                if (string.IsNullOrWhiteSpace(valueToCompareWith.Commands[commandIndex]))
                     continue;
 
                 if (Commands[commandIndex] != valueToCompareWith.Commands[commandIndex])

@@ -2,12 +2,15 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
+using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.HandlerBuilders;
 using Telegram.Bot.Helper.Handlers;
 using Telegram.Bot.Helper.Languages;
 using Telegram.Bot.Helper.Localization;
 using Telegram.Bot.Helper.Sniffer;
+using Telegram.Bot.Helper.Widgets;
+using Telegram.Bot.Helper.Widgets.Data;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.Payments;
@@ -38,6 +41,8 @@ namespace Telegram.Bot.Helper
         private readonly LocalizationOptions _localizationOptions;
 
         private readonly Dictionary<int, List<ISniffer>> _sniffers = new Dictionary<int, List<ISniffer>>();
+
+        public WidgetSettings<TLocalizationModel> WidgetSettings = new WidgetSettings<TLocalizationModel>();
 
         /// <summary>
         /// Verify user on every incoming message. If null, all verify statuses will be set to Unchecked.
@@ -89,8 +94,51 @@ namespace Telegram.Bot.Helper
             if (Client == null)
                 throw new ArgumentException("Initializer must not return null", nameof(initializer));
 
+            InitializeRegisteredCallbackQueryHandlers();
+
             Client.OnUpdate += async (sender, e) =>
                 await UpdateReceived(e.Update);
+        }
+
+        private void InitializeRegisteredCallbackQueryHandlers()
+        {
+            var separatorStr = Separator.ToString();
+            CallbackQueries(_q =>
+            {
+                _q["ignore"] = (q, c, v, l) =>
+                {
+                    return Client.AnswerCallbackQueryAsync(q.Query.Id, cacheTime: 86400);
+                };
+                _q[string.Join(separatorStr, "widget", "calendar", " ", " ")] = async (q, c, v, l) =>
+                {
+                    if (WidgetSettings.Calendar == null)
+                        throw new NullReferenceException($"{nameof(WidgetSettings)}.{nameof(WidgetSettings.Calendar)} is null");
+
+                    WidgetSettings.Calendar.EnsureSettingsAreCorrect();
+
+                    if (!int.TryParse(c[2], out var year) || !int.TryParse(c[3], out var month))
+                        return;
+
+                    var newData = new CalendarData
+                    {
+                        CurrentPosition = (year, month),
+                        MaxAllowedDate = await WidgetSettings.Calendar.MaxAllowedDate(q.Query.From),
+                        MinAllowedDate = await WidgetSettings.Calendar.MinAllowedDate(q.Query.From)
+                    };
+
+                    await Client.EditMessageReplyMarkupAsync(q.ChatId, q.MessageId,
+                        new CalendarWidget<TLocalizationModel>(WidgetSettings.Calendar, newData, Separator, l));
+                };
+                _q[string.Join(separatorStr, "widget", "calendar", "", "", "")] = async (q, c, v, l) =>
+                {
+                    if (!int.TryParse(c[2], out var year) || !int.TryParse(c[3], out var month) || !int.TryParse(c[4], out var day))
+                        return;
+
+                    await Client.DeleteMessageAsync(q.ChatId, q.MessageId);
+                    await Client.SendTextMessageAsync(q.ChatId, $"Selected date: {year}-{month}-{day}");
+                    await WidgetSettings.Calendar.DateSelected((year, month, day), q.Query.From, v, l);
+                };
+            });
         }
 
         /// <summary>
@@ -136,6 +184,27 @@ namespace Telegram.Bot.Helper
             if (_sniffers.ContainsKey(userId))
                 _sniffers[userId].Add(sniffer);
             else _sniffers.Add(userId, new List<ISniffer> { sniffer });
+        }
+
+        /// <summary>
+        /// Send calendar widget to specified user
+        /// </summary>
+        public async Task SendCalendarAsync(ChatId chatId, string text, TLocalizationModel localizationModel, CalendarData calendarData, User user,
+            ParseMode parseMode = ParseMode.Default, bool disableWebPagePreview = false, bool disableNotification = false, int replyToMessageId = 0,
+            CancellationToken cancellationToken = default)
+        {
+            if (WidgetSettings.Calendar == null)
+                throw new NullReferenceException($"{nameof(WidgetSettings)}.{nameof(WidgetSettings.Calendar)} is null");
+            if (localizationModel == null)
+                throw new ArgumentNullException(nameof(localizationModel));
+
+            WidgetSettings.Calendar.EnsureSettingsAreCorrect();
+
+            calendarData.MaxAllowedDate = await WidgetSettings.Calendar.MaxAllowedDate(user);
+            calendarData.MinAllowedDate = await WidgetSettings.Calendar.MinAllowedDate(user);
+
+            await Client.SendTextMessageAsync(chatId, text, parseMode, disableWebPagePreview, disableNotification, replyToMessageId,
+                new CalendarWidget<TLocalizationModel>(WidgetSettings.Calendar, calendarData, Separator, localizationModel), cancellationToken);
         }
 
         /// <summary>
@@ -207,11 +276,7 @@ namespace Telegram.Bot.Helper
                         
                         if (message.Type == MessageType.Text && _textMessageCallbacks.Count > 0)
                         {
-                            var mCb = _textMessageCallbacks.Find(it =>
-                            {
-                                var value = it.Message.Compile();
-                                return value(localizationModel) == message.Text;
-                            });
+                            var mCb = _textMessageCallbacks.Find(it => it.Message(localizationModel) == message.Text);
 
                             if (mCb != default)
                             {

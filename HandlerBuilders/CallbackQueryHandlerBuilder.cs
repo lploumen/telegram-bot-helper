@@ -5,9 +5,6 @@ using Telegram.Bot.Helper.Handlers;
 
 namespace Telegram.Bot.Helper.HandlerBuilders
 {
-    /// <summary>
-    /// Callback query builder
-    /// </summary>
     public class CallbackQueryHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbacks;
@@ -21,15 +18,35 @@ namespace Telegram.Bot.Helper.HandlerBuilders
 
         public Func<CallbackQueryInfo, string[], Verify, TLocalizationModel, Task> this[string data, Verify verified = Verify.Unchecked]
         {
-            set => _callbacks.Add(new CallbackQueryHandler<TLocalizationModel>(value, data, _separator, verified));
+            set
+            {
+                if (data == null)
+                    throw new ArgumentNullException(nameof(data));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                _callbacks.Add(new CallbackQueryHandler<TLocalizationModel>(value, data, _separator, verified));
+            }
         }
 
         public Func<CallbackQueryInfo, string[], Verify, TLocalizationModel, Task> this[string[] dataItems, Verify verified = Verify.Unchecked]
         {
             set
             {
-                foreach (var data in dataItems)
-                    _callbacks.Add(new CallbackQueryHandler<TLocalizationModel>(value, data, _separator, verified));
+                if (dataItems == null)
+                    throw new ArgumentNullException(nameof(dataItems));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                int index = 0;
+                foreach (var dataItem in dataItems)
+                {
+                    if (dataItem == null)
+                        throw new ArgumentNullException($"{nameof(dataItems)}[{index}]");
+
+                    _callbacks.Add(new CallbackQueryHandler<TLocalizationModel>(value, dataItem, _separator, verified));
+                    ++index;
+                }
             }
         }
     }

@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq.Expressions;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.Handlers;
 using Telegram.Bot.Types;
@@ -13,10 +12,15 @@ namespace Telegram.Bot.Helper.HandlerBuilders
 
         internal TextMessageHandlerBuilder(List<TextMessageHandler<TLocalizationModel>> messages) => _messages = messages;
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[Expression<Func<TLocalizationModel, string>> message, Verify verified = Verify.Unchecked]
+        public Func<Message, Verify, TLocalizationModel, Task> this[Func<TLocalizationModel, string> message, Verify verified = Verify.Unchecked]
         {
             set
             {
+                if (message == null)
+                    throw new ArgumentNullException(nameof(message));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
                 _messages.Add(new TextMessageHandler<TLocalizationModel>(value, message, verified));
             }
         }
@@ -25,17 +29,33 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         {
             set
             {
-                Expression<Func<TLocalizationModel, string>> expression = _ => message;
-                _messages.Add(new TextMessageHandler<TLocalizationModel>(value, expression, verified));
+                if (message == null)
+                    throw new ArgumentNullException(nameof(message));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                _messages.Add(new TextMessageHandler<TLocalizationModel>(value, _ => message, verified));
             }
         }
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[IEnumerable<Expression<Func<TLocalizationModel, string>>> messages, Verify verified = Verify.Unchecked]
+        public Func<Message, Verify, TLocalizationModel, Task> this[IEnumerable<Func<TLocalizationModel, string>> messages, Verify verified = Verify.Unchecked]
         {
             set
             {
+                if (messages == null)
+                    throw new ArgumentNullException(nameof(messages));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                int index = 0;
                 foreach (var message in messages)
+                {
+                    if (message == null)
+                        throw new ArgumentNullException($"{nameof(messages)}[{index}]");
+
                     _messages.Add(new TextMessageHandler<TLocalizationModel>(value, message, verified));
+                    ++index;
+                }
             }
         }
 
@@ -43,10 +63,19 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         {
             set
             {
+                if (messages == null)
+                    throw new ArgumentNullException(nameof(messages));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                int index = 0;
                 foreach (var message in messages)
                 {
-                    Expression<Func<TLocalizationModel, string>> expression = _ => message;
-                    _messages.Add(new TextMessageHandler<TLocalizationModel>(value, expression, verified));
+                    if (message == null)
+                        throw new ArgumentNullException($"{nameof(messages)}[{index}]");
+
+                    _messages.Add(new TextMessageHandler<TLocalizationModel>(value, _ => message, verified));
+                    ++index;
                 }
             }
         }

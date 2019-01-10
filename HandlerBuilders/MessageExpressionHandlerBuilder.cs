@@ -11,13 +11,18 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _expressionList;
 
         internal MessageExpressionHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList) => _expressionList = expressionList;
-
-        /// <param name="expression">Func that takes Message and returns bool</param>
-        /// <param name="verified">Access restrictions</param>
-        public Func<Message, Verify, TLocalizationModel, Task> this[Func<Message, bool> expression,
-            Verify verified = Verify.Unchecked]
+        
+        public Func<Message, Verify, TLocalizationModel, Task> this[Func<Message, bool> expression, Verify verified = Verify.Unchecked]
         {
-            set => _expressionList.Add(new MessageExpressionHandler<TLocalizationModel>(expression, value, verified));
+            set
+            {
+                if (expression == null)
+                    throw new ArgumentNullException(nameof(expression));
+                if (value == null)
+                    throw new ArgumentNullException("value");
+
+                _expressionList.Add(new MessageExpressionHandler<TLocalizationModel>(expression, value, verified));
+            }
         }
     }
 }
