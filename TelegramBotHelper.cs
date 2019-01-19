@@ -34,7 +34,6 @@ namespace Telegram.Bot.Helper
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageExpressionHandler<TLocalizationModel>>();
 
         private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
-        private readonly LocalizationSettings _localizationOptions;
 
         private readonly Dictionary<int, Queue<ISniffer>> _sniffers = new Dictionary<int, Queue<ISniffer>>();
 
@@ -69,19 +68,18 @@ namespace Telegram.Bot.Helper
         public Func<ShippingQuery, Verify, TLocalizationModel, Task> ReceivedShippingQuery;
 
         /// <summary>
+        /// Settings for update handling
+        /// </summary>
+        public readonly TelegramBotHelperSettings Settings = new TelegramBotHelperSettings();
+
+        /// <summary>
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
         /// <param name="client">Initialize TelegramBotClient to use by helper</param>
-        /// <param name="localizationOptions">Localization options. If null, will be used 'en' as default localization key.</param>
         /// <param name="separator">Separator which will be used to split callback query data.</param>
-        public TelegramBotHelper(TelegramBotClient client, LocalizationSettings localizationOptions, char separator = '~')
+        public TelegramBotHelper(TelegramBotClient client, in char separator = '~')
         {
             Separator = separator;
-
-            _localizationOptions = localizationOptions ?? throw new ArgumentNullException(nameof(localizationOptions));
-            if (localizationOptions.DefaultLocalizationKey == null)
-                throw new ArgumentNullException($"{nameof(localizationOptions)}.{nameof(localizationOptions.DefaultLocalizationKey)}");
-
             Client = client ?? throw new ArgumentNullException(nameof(client));
         }
 
@@ -189,7 +187,7 @@ namespace Telegram.Bot.Helper
             var lang = SelectLanguage == null ? from?.LanguageCode : await SelectLanguage(from);
 
             if (lang == null || !_localizationModels.ContainsKey(lang))
-                lang = _localizationOptions.DefaultLocalizationKey;
+                lang = Settings.Localization.DefaultLocalizationKey ?? throw new NullReferenceException("Default localization key is null");
 
             if (!_localizationModels.TryGetValue(lang, out var localizationModel))
                 throw new KeyNotFoundException($"Language code '{lang}' was not found");
@@ -198,10 +196,10 @@ namespace Telegram.Bot.Helper
 
             switch (update.Type)
             {
-                case UpdateType.EditedMessage:
-                case UpdateType.Message:
-                case UpdateType.ChannelPost:
-                case UpdateType.EditedChannelPost:
+                case UpdateType.EditedMessage when !Settings.IgnoreEditedPrivateMessages:
+                case UpdateType.Message when !Settings.IgnorePrivateMessages:
+                case UpdateType.ChannelPost when !Settings.IgnoreChannelPosts:
+                case UpdateType.EditedChannelPost when !Settings.IgnoreEditedChannelPosts:
                     {
                         Message message = update.Type == UpdateType.Message ? update.Message
                             : update.Type == UpdateType.EditedMessage ? update.EditedMessage
