@@ -1,36 +1,31 @@
-﻿using System.Collections.Generic;
-using System.Threading.Tasks;
+﻿using System.Threading.Tasks;
 using Telegram.Bot.Types;
-using Telegram.Bot.Types.Enums;
 
 namespace Telegram.Bot.Helper.Sniffer
 {
     /// <summary>
-    /// Allows you to temporary intercept specified types of update and run your own logic
+    /// Allows you to temporary intercept incoming messages and run your own logic for them.
     /// </summary>
     public interface ISniffer
     {
         /// <summary>
-        /// Filter for sniffer so only specified update types will be intercepted.
-        /// </summary>
-        IEnumerable<UpdateType> FilterTypes();
-
-        /// <summary>
         /// If returns true, sniffer will be removed.
         /// </summary>
-        /// <param name="update">Incoming update that was intercepted</param>
-        Task<bool> ValidateAsync(Update update);
+        /// <param name="message">Incoming message that was intercepted</param>
+        bool Validate(Message message);
 
         /// <summary>
-        /// This method will be called when <see cref="ValidateAsync"/> returns true.
+        /// This method will be called when <see cref="Validate"/> returns true.
         /// </summary>
-        /// <param name="update">Incoming update that was intercepted</param>
-        Task OnSuccessAsync(Update update);
+        /// <param name="client"></param>
+        /// <param name="message">Incoming message that was intercepted</param>
+        Task OnSuccessAsync(TelegramBotClient client, Message message);
 
         /// <summary>
-        /// This method will be called when <see cref="ValidateAsync"/> returns false.
+        /// This method will be called when <see cref="Validate"/> returns false.
         /// </summary>
-        /// <param name="update">Incoming update that was intercepted</param>
-        Task OnFailureAsync(Update update);
+        /// <param name="client"></param>
+        /// <param name="message">Incoming message that was intercepted</param>
+        Task OnFailureAsync(TelegramBotClient client, Message message);
     }
 }

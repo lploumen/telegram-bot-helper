@@ -2,15 +2,11 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Threading;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.HandlerBuilders;
 using Telegram.Bot.Helper.Handlers;
-using Telegram.Bot.Helper.Languages;
 using Telegram.Bot.Helper.Localization;
 using Telegram.Bot.Helper.Sniffer;
-using Telegram.Bot.Helper.Widgets;
-using Telegram.Bot.Helper.Widgets.Data;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 using Telegram.Bot.Types.Payments;
@@ -21,7 +17,7 @@ namespace Telegram.Bot.Helper
     /// Telegram bot helper
     /// </summary>
     /// <typeparam name="TLocalizationModel">Class that contains localization fields</typeparam>
-    public class TelegramBotHelper<TLocalizationModel> where TLocalizationModel : class, new()
+    public sealed class TelegramBotHelper<TLocalizationModel> where TLocalizationModel : class, new()
     {
         /// <summary>
         /// Callback data separator. Default is '~'. You can change it in constructor.
@@ -38,11 +34,9 @@ namespace Telegram.Bot.Helper
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageExpressionHandler<TLocalizationModel>>();
 
         private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
-        private readonly LocalizationOptions _localizationOptions;
+        private readonly LocalizationSettings _localizationOptions;
 
-        private readonly Dictionary<int, List<ISniffer>> _sniffers = new Dictionary<int, List<ISniffer>>();
-
-        public WidgetSettings<TLocalizationModel> WidgetSettings = new WidgetSettings<TLocalizationModel>();
+        private readonly Dictionary<int, Queue<ISniffer>> _sniffers = new Dictionary<int, Queue<ISniffer>>();
 
         /// <summary>
         /// Verify user on every incoming message. If null, all verify statuses will be set to Unchecked.
@@ -77,68 +71,18 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
-        /// <param name="initializer">Initialize TelegramBotClient to use by helper</param>
+        /// <param name="client">Initialize TelegramBotClient to use by helper</param>
         /// <param name="localizationOptions">Localization options. If null, will be used 'en' as default localization key.</param>
         /// <param name="separator">Separator which will be used to split callback query data.</param>
-        public TelegramBotHelper(Func<TelegramBotClient> initializer, LocalizationOptions localizationOptions, char separator = '~')
+        public TelegramBotHelper(TelegramBotClient client, LocalizationSettings localizationOptions, char separator = '~')
         {
-            if (initializer == null)
-                throw new ArgumentNullException(nameof(initializer));
-
             Separator = separator;
+
             _localizationOptions = localizationOptions ?? throw new ArgumentNullException(nameof(localizationOptions));
-            if (_localizationOptions.DefaultLocalizationKey == null)
-                throw new ArgumentNullException(nameof(_localizationOptions.DefaultLocalizationKey));
+            if (localizationOptions.DefaultLocalizationKey == null)
+                throw new ArgumentNullException($"{nameof(localizationOptions)}.{nameof(localizationOptions.DefaultLocalizationKey)}");
 
-            Client = initializer();
-            if (Client == null)
-                throw new ArgumentException("Initializer must not return null", nameof(initializer));
-
-            InitializeRegisteredCallbackQueryHandlers();
-
-            Client.OnUpdate += async (sender, e) =>
-                await UpdateReceived(e.Update);
-        }
-
-        private void InitializeRegisteredCallbackQueryHandlers()
-        {
-            var separatorStr = Separator.ToString();
-            CallbackQueries(_q =>
-            {
-                _q["ignore"] = (q, c, v, l) =>
-                {
-                    return Client.AnswerCallbackQueryAsync(q.Query.Id, cacheTime: 86400);
-                };
-                _q[string.Join(separatorStr, "widget", "calendar", " ", " ")] = async (q, c, v, l) =>
-                {
-                    if (WidgetSettings.Calendar == null)
-                        throw new NullReferenceException($"{nameof(WidgetSettings)}.{nameof(WidgetSettings.Calendar)} is null");
-
-                    WidgetSettings.Calendar.EnsureSettingsAreCorrect();
-
-                    if (!int.TryParse(c[2], out var year) || !int.TryParse(c[3], out var month))
-                        return;
-
-                    var newData = new CalendarData
-                    {
-                        CurrentPosition = (year, month),
-                        MaxAllowedDate = await WidgetSettings.Calendar.MaxAllowedDate(q.Query.From),
-                        MinAllowedDate = await WidgetSettings.Calendar.MinAllowedDate(q.Query.From)
-                    };
-
-                    await Client.EditMessageReplyMarkupAsync(q.ChatId, q.MessageId,
-                        new CalendarWidget<TLocalizationModel>(WidgetSettings.Calendar, newData, Separator, l));
-                };
-                _q[string.Join(separatorStr, "widget", "calendar", "", "", "")] = async (q, c, v, l) =>
-                {
-                    if (!int.TryParse(c[2], out var year) || !int.TryParse(c[3], out var month) || !int.TryParse(c[4], out var day))
-                        return;
-
-                    await Client.DeleteMessageAsync(q.ChatId, q.MessageId);
-                    await Client.SendTextMessageAsync(q.ChatId, $"Selected date: {year}-{month}-{day}");
-                    await WidgetSettings.Calendar.DateSelected((year, month, day), q.Query.From, v, l);
-                };
-            });
+            Client = client ?? throw new ArgumentNullException(nameof(client));
         }
 
         /// <summary>
@@ -156,7 +100,6 @@ namespace Telegram.Bot.Helper
         public void AddJsonLocalization(string directoryPath)
         {
             var mapper = new LocalizationMapper<TLocalizationModel>(directoryPath);
-
             foreach (var (key, value) in mapper.GetLocalizationModels())
                 _localizationModels.Add(key, value);
         }
@@ -177,34 +120,18 @@ namespace Telegram.Bot.Helper
         }
 
         /// <summary>
-        /// Add sniffer for specified chat id
+        /// Add sniffer for specified user
         /// </summary>
         public void AddSniffer(int userId, ISniffer sniffer)
         {
-            if (_sniffers.ContainsKey(userId))
-                _sniffers[userId].Add(sniffer);
-            else _sniffers.Add(userId, new List<ISniffer> { sniffer });
-        }
-
-        /// <summary>
-        /// Send calendar widget to specified user
-        /// </summary>
-        public async Task SendCalendarAsync(ChatId chatId, string text, TLocalizationModel localizationModel, CalendarData calendarData, User user,
-            ParseMode parseMode = ParseMode.Default, bool disableWebPagePreview = false, bool disableNotification = false, int replyToMessageId = 0,
-            CancellationToken cancellationToken = default)
-        {
-            if (WidgetSettings.Calendar == null)
-                throw new NullReferenceException($"{nameof(WidgetSettings)}.{nameof(WidgetSettings.Calendar)} is null");
-            if (localizationModel == null)
-                throw new ArgumentNullException(nameof(localizationModel));
-
-            WidgetSettings.Calendar.EnsureSettingsAreCorrect();
-
-            calendarData.MaxAllowedDate = await WidgetSettings.Calendar.MaxAllowedDate(user);
-            calendarData.MinAllowedDate = await WidgetSettings.Calendar.MinAllowedDate(user);
-
-            await Client.SendTextMessageAsync(chatId, text, parseMode, disableWebPagePreview, disableNotification, replyToMessageId,
-                new CalendarWidget<TLocalizationModel>(WidgetSettings.Calendar, calendarData, Separator, localizationModel), cancellationToken);
+            if (_sniffers.TryGetValue(userId, out var q))
+                q.Enqueue(sniffer);
+            else
+            {
+                q = new Queue<ISniffer>(1);
+                q.Enqueue(sniffer);
+                _sniffers.Add(userId, q);
+            }
         }
 
         /// <summary>
@@ -239,7 +166,17 @@ namespace Telegram.Bot.Helper
                     break;
                 case UpdateType.Message:
                     from = update.Message.From;
-                    break;
+                    if (!_sniffers.TryGetValue(from.Id, out var sniffers))
+                        break;
+
+                    var sniffer = sniffers.Peek();
+                    if (await sniffer.RunSniffer(update.Message, Client))
+                    {
+                        sniffers.Dequeue();
+                        if (sniffers.Count == 0)
+                            _sniffers.Remove(from.Id);
+                    }
+                    return;
                 case UpdateType.PreCheckoutQuery:
                     from = update.PreCheckoutQuery.From;
                     break;
@@ -248,9 +185,6 @@ namespace Telegram.Bot.Helper
                     break;
                 default: return;
             }
-
-            if (await _sniffers.RunSniffers(from.Id, update))
-                return;
 
             var lang = SelectLanguage == null ? from?.LanguageCode : await SelectLanguage(from);
 
@@ -281,7 +215,7 @@ namespace Telegram.Bot.Helper
                             if (mCb != default)
                             {
                                 if (mCb.Verified == Verify.Unchecked || mCb.Verified.HasFlag(v))
-                                    await mCb.Callback(message, v, localizationModel);
+                                    await mCb.Callback(message, localizationModel);
                                 return;
                             }
                         }
@@ -295,7 +229,7 @@ namespace Telegram.Bot.Helper
                                 && !messageExpressionCallback.Verified.HasFlag(v))
                                 continue;
 
-                            await messageExpressionCallback.Callback(message, v, localizationModel);
+                            await messageExpressionCallback.Callback(message, localizationModel);
                         }
 
                         break;
@@ -309,7 +243,7 @@ namespace Telegram.Bot.Helper
                                 continue;
 
                             if (callbackQueryFunction.Verified == Verify.Unchecked || callbackQueryFunction.Verified.HasFlag(v))
-                                await callbackQueryFunction.Callback(new CallbackQueryInfo(update.CallbackQuery), c.Commands, v, localizationModel);
+                                await callbackQueryFunction.Callback(new CallbackQueryInfo(update.CallbackQuery), c.Commands, localizationModel);
                         }
                         break;
                     }

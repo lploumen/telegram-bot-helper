@@ -6,13 +6,17 @@ using Telegram.Bot.Types;
 
 namespace Telegram.Bot.Helper.HandlerBuilders
 {
+    /// <summary>
+    /// Builder for text message handlers
+    /// </summary>
+    /// <typeparam name="TLocalizationModel">Localization model</typeparam>
     public class TextMessageHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<TextMessageHandler<TLocalizationModel>> _messages;
 
-        internal TextMessageHandlerBuilder(List<TextMessageHandler<TLocalizationModel>> messages) => _messages = messages;
+        internal TextMessageHandlerBuilder(in List<TextMessageHandler<TLocalizationModel>> messages) => _messages = messages;
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[Func<TLocalizationModel, string> message, Verify verified = Verify.Unchecked]
+        public Func<Message, TLocalizationModel, Task> this[Func<TLocalizationModel, string> message, Verify verified = Verify.Unchecked]
         {
             set
             {
@@ -25,7 +29,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders
             }
         }
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[string message, Verify verified = Verify.Unchecked]
+        public Func<Message, TLocalizationModel, Task> this[string message, Verify verified = Verify.Unchecked]
         {
             set
             {
@@ -38,7 +42,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders
             }
         }
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[IEnumerable<Func<TLocalizationModel, string>> messages, Verify verified = Verify.Unchecked]
+        public Func<Message, TLocalizationModel, Task> this[IEnumerable<Func<TLocalizationModel, string>> messages, Verify verified = Verify.Unchecked]
         {
             set
             {
@@ -59,7 +63,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders
             }
         }
 
-        public Func<Message, Verify, TLocalizationModel, Task> this[IEnumerable<string> messages, Verify verified = Verify.Unchecked]
+        public Func<Message, TLocalizationModel, Task> this[IEnumerable<string> messages, Verify verified = Verify.Unchecked]
         {
             set
             {

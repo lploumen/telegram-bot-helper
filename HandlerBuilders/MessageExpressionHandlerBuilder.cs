@@ -6,13 +6,17 @@ using Telegram.Bot.Types;
 
 namespace Telegram.Bot.Helper.HandlerBuilders
 {
+    /// <summary>
+    /// Builder for message expressions
+    /// </summary>
+    /// <typeparam name="TLocalizationModel">Localization model</typeparam>
     public class MessageExpressionHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _expressionList;
 
-        internal MessageExpressionHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList) => _expressionList = expressionList;
+        internal MessageExpressionHandlerBuilder(in List<MessageExpressionHandler<TLocalizationModel>> expressionList) => _expressionList = expressionList;
         
-        public Func<Message, Verify, TLocalizationModel, Task> this[Func<Message, bool> expression, Verify verified = Verify.Unchecked]
+        public Func<Message, TLocalizationModel, Task> this[Func<Message, bool> expression, Verify verified = Verify.Unchecked]
         {
             set
             {

@@ -2,7 +2,10 @@
 
 namespace Telegram.Bot.Helper.Keyboards
 {
-    public class InlineKeyboardBuilder : Builder<InlineKeyboardButton>
+    /// <summary>
+    /// <see cref="Builder{T}"/> of InlineKeyboardButtons
+    /// </summary>
+    public sealed class InlineKeyboardBuilder : Builder<InlineKeyboardButton>
     {
     }
 }

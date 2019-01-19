@@ -5,7 +5,7 @@ namespace Telegram.Bot.Helper
     /// <summary>
     /// Helper class to work with callback query
     /// </summary>
-    public class CallbackQueryInfo
+    public sealed class CallbackQueryInfo
     {
         /// <summary>
         /// Original callback query object

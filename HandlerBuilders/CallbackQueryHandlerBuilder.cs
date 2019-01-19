@@ -5,18 +5,22 @@ using Telegram.Bot.Helper.Handlers;
 
 namespace Telegram.Bot.Helper.HandlerBuilders
 {
-    public class CallbackQueryHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
+    /// <summary>
+    /// Builder for callback query handlers
+    /// </summary>
+    /// <typeparam name="TLocalizationModel">Localization model</typeparam>
+    public sealed class CallbackQueryHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbacks;
         private readonly char _separator;
 
-        internal CallbackQueryHandlerBuilder(List<CallbackQueryHandler<TLocalizationModel>> callbacks, char separator)
+        internal CallbackQueryHandlerBuilder(in List<CallbackQueryHandler<TLocalizationModel>> callbacks, in char separator)
         {
             _callbacks = callbacks;
             _separator = separator;
         }
 
-        public Func<CallbackQueryInfo, string[], Verify, TLocalizationModel, Task> this[string data, Verify verified = Verify.Unchecked]
+        public Func<CallbackQueryInfo, string[], TLocalizationModel, Task> this[string data, Verify verified = Verify.Unchecked]
         {
             set
             {
@@ -29,7 +33,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders
             }
         }
 
-        public Func<CallbackQueryInfo, string[], Verify, TLocalizationModel, Task> this[string[] dataItems, Verify verified = Verify.Unchecked]
+        public Func<CallbackQueryInfo, string[], TLocalizationModel, Task> this[string[] dataItems, Verify verified = Verify.Unchecked]
         {
             set
             {

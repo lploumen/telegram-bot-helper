@@ -5,7 +5,7 @@ namespace Telegram.Bot.Helper
     /// <summary>
     /// Callback query command is callback data of inline button.
     /// </summary>
-    public class CallbackQueryCommand
+    public sealed class CallbackQueryCommand
     {
         /// <summary>
         /// Count of commands
@@ -17,7 +17,7 @@ namespace Telegram.Bot.Helper
         /// </summary>
         public readonly string[] Commands;
 
-        internal CallbackQueryCommand(string command, char separator)
+        internal CallbackQueryCommand(string command, in char separator)
         {
             Commands = command.Split(new[] { separator }, StringSplitOptions.None);
         }

@@ -6,7 +6,7 @@ using System.Text;
 
 namespace Telegram.Bot.Helper.Localization
 {
-    internal class LocalizationMapper<TLocalizationModel> where TLocalizationModel : class, new()
+    internal sealed class LocalizationMapper<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly string _directoryPath;
         
