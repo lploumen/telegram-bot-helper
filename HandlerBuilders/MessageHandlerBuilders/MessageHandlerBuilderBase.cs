@@ -10,11 +10,11 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
     public abstract class MessageHandlerBuilderBase<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private protected readonly List<MessageHandler<TLocalizationModel>> _expressionList;
-        private protected readonly Func<MessageType, bool> _typePredicate;
+        private protected readonly Func<ChatType, bool> _typePredicate;
 
         private protected MessageHandlerBuilderBase(
             List<MessageHandler<TLocalizationModel>> expressionList,
-            Func<MessageType, bool> typePredicate)
+            Func<ChatType, bool> typePredicate)
         {
             _expressionList = expressionList;
             _typePredicate = typePredicate;

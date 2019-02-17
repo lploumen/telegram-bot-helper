@@ -10,11 +10,11 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
     public sealed class MessageTextPredicateHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<MessageHandler<TLocalizationModel>> _expressionList;
-        private readonly Func<MessageType, bool> _typePredicate;
+        private readonly Func<ChatType, bool> _typePredicate;
         private readonly Func<string, string, StringComparison, bool> _textPredicate;
 
         internal MessageTextPredicateHandlerBuilder(List<MessageHandler<TLocalizationModel>> expressionList,
-            Func<string, string, StringComparison, bool> textPredicate, Func<MessageType, bool> typePredicate)
+            Func<string, string, StringComparison, bool> textPredicate, Func<ChatType, bool> typePredicate)
         {
             _expressionList = expressionList;
             _typePredicate = typePredicate;
@@ -34,7 +34,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
             {
                 _expressionList.Add(new MessageHandler<TLocalizationModel>(m =>
                 {
-                    if (_typePredicate != null && !_typePredicate(m.Type))
+                    if (_typePredicate != null && !_typePredicate(m.Chat.Type))
                         return false;
                     
                     return m.Type == MessageType.Text && _textPredicate(m.Text, text, comparison);
