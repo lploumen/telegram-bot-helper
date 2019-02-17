@@ -57,7 +57,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
             set
             {
                 _expressionList.Add(new MessageHandler<TLocalizationModel>(
-                    m => (_typePredicate == null || _typePredicate(m.Type)) && m.Type == MessageType.Text &&
+                    m => (_typePredicate == null || _typePredicate(m.Chat.Type)) && m.Type == MessageType.Text &&
                          m.Text.Equals(text, comparison), value, verified));
             }
         }
