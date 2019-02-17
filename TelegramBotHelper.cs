@@ -31,7 +31,7 @@ namespace Telegram.Bot.Helper
 
         private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbackQueryFunctions = new List<CallbackQueryHandler<TLocalizationModel>>();
         private readonly List<TextMessageHandler<TLocalizationModel>> _textMessageCallbacks = new List<TextMessageHandler<TLocalizationModel>>();
-        private readonly List<MessageExpressionHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageExpressionHandler<TLocalizationModel>>();
+        private readonly List<MessageHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageHandler<TLocalizationModel>>();
 
         private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
 
@@ -220,7 +220,7 @@ namespace Telegram.Bot.Helper
 
                         foreach (var messageExpressionCallback in _messageExpressionCallbacks)
                         {
-                            if (!messageExpressionCallback.Expression(message))
+                            if (!messageExpressionCallback.Predicate(message))
                                 continue;
 
                             if (messageExpressionCallback.Verified != Verify.Unchecked
