@@ -4,18 +4,18 @@ using Telegram.Bot.Types;
 
 namespace Telegram.Bot.Helper.Handlers
 {
-    internal sealed class MessageExpressionHandler<TLocalizationModel> where TLocalizationModel : class, new()
+    internal sealed class MessageHandler<TLocalizationModel> where TLocalizationModel : class, new()
     {
-        internal readonly Func<Message, bool> Expression;
+        internal readonly Func<Message, bool> Predicate;
         internal readonly Func<Message, TLocalizationModel, Task> Callback;
         internal readonly Verify Verified;
 
-        internal MessageExpressionHandler(Func<Message, bool> expression,
+        internal MessageHandler(Func<Message, bool> predicate,
             Func<Message, TLocalizationModel, Task> callback,
             Verify verified)
         {
             Callback = callback;
-            Expression = expression;
+            Predicate = predicate;
             Verified = verified;
         }
     }
