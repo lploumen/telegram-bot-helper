@@ -20,8 +20,8 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         /// <summary>
         /// Handler for text message
         /// </summary>
-        /// <param name="text">Process if message text equals to specified value</param>
-        /// <param name="verified">Restrict access to this handler for specified verify values only</param>
+        /// <param name="text">Process if message text equals to specific value</param>
+        /// <param name="verified">Restrict access to this handler for specific verify values only</param>
         /// <param name="comparison">Text comparison rule</param>
         /// <returns></returns>
         public Func<Message, TLocalizationModel, Task> this[string text, Verify verified = Verify.Unchecked, StringComparison comparison = StringComparison.Ordinal]
@@ -35,11 +35,11 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         /// <summary>
         /// Handlers for text message
         /// </summary>
-        /// <param name="texts">Process if message text equals to specified value</param>
-        /// <param name="verified">Restrict access to these handlers for specified verify values only</param>
+        /// <param name="texts">Process if message text equals to specific value</param>
+        /// <param name="verified">Restrict access to these handlers for specific verify values only</param>
         /// <param name="comparison">Text comparison rule</param>
         /// <returns></returns>
-        public Func<Message, TLocalizationModel, Task> this[string[] texts, Verify verified = Verify.Unchecked, StringComparison comparison = StringComparison.Ordinal]
+        public Func<Message, TLocalizationModel, Task> this[IEnumerable<string> texts, Verify verified = Verify.Unchecked, StringComparison comparison = StringComparison.Ordinal]
         {
             set
             {
