@@ -33,17 +33,17 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
         /// <summary>
         /// Handler for text messages containing any of specific texts
         /// </summary>
-        public readonly MessageTextPredicateHandlerBuilder<TLocalizationModel> Contains;
+        public MessageTextPredicateHandlerBuilder<TLocalizationModel> Contains { get; }
 
         /// <summary>
         /// Handler for text messages starting with any of specific texts
         /// </summary>
-        public readonly MessageTextPredicateHandlerBuilder<TLocalizationModel> StartsWith;
+        public MessageTextPredicateHandlerBuilder<TLocalizationModel> StartsWith { get; }
 
         /// <summary>
         /// Handler for text messages ending with any of specific texts
         /// </summary>
-        public readonly MessageTextPredicateHandlerBuilder<TLocalizationModel> EndsWith;
+        public MessageTextPredicateHandlerBuilder<TLocalizationModel> EndsWith { get; }
 
         /// <summary>
         /// Handler for text message
