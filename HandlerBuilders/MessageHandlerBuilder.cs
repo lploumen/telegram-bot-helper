@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.Handlers;
@@ -8,7 +8,7 @@ using Telegram.Bot.Types.Enums;
 namespace Telegram.Bot.Helper.HandlerBuilders
 {
     /// <summary>
-    /// Builder for message expressions
+    /// Builder for message updates
     /// </summary>
     /// <typeparam name="TLocalizationModel">Localization model</typeparam>
     public class MessageHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
