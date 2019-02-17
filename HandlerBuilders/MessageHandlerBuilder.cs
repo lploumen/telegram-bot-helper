@@ -1,6 +1,7 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders;
 using Telegram.Bot.Helper.Handlers;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
@@ -15,7 +16,16 @@ namespace Telegram.Bot.Helper.HandlerBuilders
     {
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _expressionList;
 
-        internal MessageHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList) => _expressionList = expressionList;
+        internal MessageHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList)
+        {
+            _expressionList = expressionList;
+            Contains = new MessageContainsHandlerBuilder<TLocalizationModel>(expressionList);
+        }
+
+        /// <summary>
+        /// Handler for text messages containing any of specific texts
+        /// </summary>
+        public readonly MessageContainsHandlerBuilder<TLocalizationModel> Contains;
 
         /// <summary>
         /// Handler for text message

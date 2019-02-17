@@ -75,7 +75,7 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
-        /// <param name="client">Initialize TelegramBotClient to use by helper</param>
+        /// <param name="client"></param>
         /// <param name="separator">Separator which will be used to split callback query data.</param>
         public TelegramBotHelper(TelegramBotClient client, in char separator = '~')
         {
@@ -291,9 +291,9 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Expression handlers for messages
         /// </summary>
-        public void MessageExpressions(Action<MessageExpressionHandlerBuilder<TLocalizationModel>> builder)
+        public void MessageExpressions(Action<MessageHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new MessageExpressionHandlerBuilder<TLocalizationModel>(_messageExpressionCallbacks));
+            builder(new MessageHandlerBuilder<TLocalizationModel>(_messageExpressionCallbacks));
         }
     }
 }
