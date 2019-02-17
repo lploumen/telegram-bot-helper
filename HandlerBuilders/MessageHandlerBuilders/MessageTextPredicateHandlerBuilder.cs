@@ -14,7 +14,7 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
         private readonly Func<string, string, StringComparison, bool> _textPredicate;
 
         internal MessageTextPredicateHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList,
-            Func<string, string, StringComparison, bool> textPredicate, Func<MessageType, bool> typePredicate = null)
+            Func<string, string, StringComparison, bool> textPredicate, Func<MessageType, bool> typePredicate)
         {
             _expressionList = expressionList;
             _typePredicate = typePredicate;
