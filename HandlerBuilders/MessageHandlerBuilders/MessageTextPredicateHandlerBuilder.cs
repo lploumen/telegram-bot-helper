@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.Handlers;
@@ -7,16 +7,18 @@ using Telegram.Bot.Types.Enums;
 
 namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
 {
-    public sealed class MessageContainsHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
+    public sealed class MessageTextPredicateHandlerBuilder<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<MessageExpressionHandler<TLocalizationModel>> _expressionList;
-        private readonly Func<Message, bool> _baseExpression;
+        private readonly Func<Message, bool> _basePredicate;
+        private readonly Func<Message, bool> _predicate;
 
-        internal MessageContainsHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList,
-            Func<Message, bool> baseExpression = null)
+        internal MessageTextPredicateHandlerBuilder(List<MessageExpressionHandler<TLocalizationModel>> expressionList,
+            Func<Message, bool> predicate, Func<Message, bool> basePredicate = null)
         {
             _expressionList = expressionList;
-            _baseExpression = baseExpression;
+            _basePredicate = basePredicate;
+            _predicate = predicate;
         }
 
         /// <summary>
@@ -32,10 +34,10 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
             {
                 _expressionList.Add(new MessageExpressionHandler<TLocalizationModel>(m =>
                 {
-                    if (_baseExpression != null && !_baseExpression(m))
+                    if (_basePredicate != null && !_basePredicate(m))
                         return false;
                     
-                    return m.Type == MessageType.Text && m.Text.IndexOf(text, comparison) != -1;
+                    return m.Type == MessageType.Text && _predicate(m);
                 }, value, verified));
             }
         }
