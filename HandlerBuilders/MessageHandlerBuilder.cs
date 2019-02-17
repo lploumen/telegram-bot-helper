@@ -20,12 +20,18 @@ namespace Telegram.Bot.Helper.HandlerBuilders
         {
             _expressionList = expressionList;
             Contains = new MessageContainsHandlerBuilder<TLocalizationModel>(expressionList);
+            StartsWith = new MessageStartsWithHandlerBuilder<TLocalizationModel>(expressionList);
         }
 
         /// <summary>
         /// Handler for text messages containing any of specific texts
         /// </summary>
         public readonly MessageContainsHandlerBuilder<TLocalizationModel> Contains;
+
+        /// <summary>
+        /// Handler for text messages starting with any of specific texts
+        /// </summary>
+        public readonly MessageStartsWithHandlerBuilder<TLocalizationModel> StartsWith;
 
         /// <summary>
         /// Handler for text message
