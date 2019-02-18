@@ -15,12 +15,12 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// If true, bot will ignore messages from private chats, groups and supergroups. Defaults to false.
         /// </summary>
-        public bool IgnorePrivateMessages;
+        public bool IgnoreMessages;
 
         /// <summary>
         /// If true, bot will ignore messages that were edited by users in private chats, groups and supergroups. Defaults to false.
         /// </summary>
-        public bool IgnoreEditedPrivateMessages;
+        public bool IgnoreEditedMessages;
 
         /// <summary>
         /// If true, bot will ignore messages that were sent to the channel. Defaults to false.
