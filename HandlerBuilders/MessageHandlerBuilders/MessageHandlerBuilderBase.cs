@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Telegram.Bot.Helper.Handlers;
+using Telegram.Bot.Helper.Handlers.MessageModels;
 using Telegram.Bot.Types;
 using Telegram.Bot.Types.Enums;
 
@@ -9,8 +10,8 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
 {
     public abstract class MessageHandlerBuilderBase<TLocalizationModel> where TLocalizationModel : class, new()
     {
-        private protected readonly List<MessageHandler<TLocalizationModel>> _expressionList;
-        private protected readonly Func<ChatType, bool> _typePredicate;
+        private readonly List<MessageHandler<TLocalizationModel>> _expressionList;
+        private readonly Func<ChatType, bool> _typePredicate;
 
         private protected MessageHandlerBuilderBase(
             List<MessageHandler<TLocalizationModel>> expressionList,
