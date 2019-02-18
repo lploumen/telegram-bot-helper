@@ -47,6 +47,26 @@ namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
         public MessageTextPredicateHandlerBuilder<TLocalizationModel> EndsWith { get; }
 
         /// <summary>
+        /// Called when message with photo type received
+        /// </summary>
+        public Func<PhotoMessage, TLocalizationModel, Task> OnPhotoAsync { get; set; }
+
+        /// <summary>
+        /// Called when message with video type received
+        /// </summary>
+        public Func<VideoMessage, TLocalizationModel, Task> OnVideoAsync { get; set; }
+
+        /// <summary>
+        /// Called when message with audio type received
+        /// </summary>
+        public Func<AudioMessage, TLocalizationModel, Task> OnAudioAsync { get; set; }
+
+        /// <summary>
+        /// Called when message with animation type received
+        /// </summary>
+        public Func<AnimationMessage, TLocalizationModel, Task> OnAnimationAsync { get; set; }
+
+        /// <summary>
         /// Handler for text message
         /// </summary>
         /// <param name="text">Process if message text equals to specific value</param>
