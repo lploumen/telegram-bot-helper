@@ -1,4 +1,5 @@
-﻿using System;
+using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
@@ -29,13 +30,12 @@ namespace Telegram.Bot.Helper
         /// </summary>
         public readonly TelegramBotClient Client;
 
-        private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbackQueryFunctions = new List<CallbackQueryHandler<TLocalizationModel>>();
-        private readonly List<TextMessageHandler<TLocalizationModel>> _textMessageCallbacks = new List<TextMessageHandler<TLocalizationModel>>();
-        private readonly List<MessageHandler<TLocalizationModel>> _messageExpressionCallbacks = new List<MessageHandler<TLocalizationModel>>();
+        private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbackQueryHandlers = new List<CallbackQueryHandler<TLocalizationModel>>();
+        private readonly List<MessageHandler<TLocalizationModel>> _messageHandlers = new List<MessageHandler<TLocalizationModel>>();
 
-        private readonly Dictionary<string, TLocalizationModel> _localizationModels = new Dictionary<string, TLocalizationModel>();
+        private readonly ConcurrentDictionary<string, TLocalizationModel> _localizationModels = new ConcurrentDictionary<string, TLocalizationModel>();
 
-        private readonly Dictionary<int, Queue<ISniffer>> _sniffers = new Dictionary<int, Queue<ISniffer>>();
+        private readonly ConcurrentDictionary<int, ConcurrentQueue<ISniffer>> _sniffers = new ConcurrentDictionary<int, ConcurrentQueue<ISniffer>>();
 
         /// <summary>
         /// Verify user on every incoming message. If null, all verify statuses will be set to Unchecked.
@@ -50,22 +50,22 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Use this delegate to receive incoming InlineQuery updates
         /// </summary>
-        public Func<InlineQuery, Verify, TLocalizationModel, Task> ReceivedInlineQuery;
+        public Func<InlineQuery, Verify, TLocalizationModel, Task> OnInlineQuery;
 
         /// <summary>
         /// Use this delegate to receive incoming ChosenInlineResult updates
         /// </summary>
-        public Func<ChosenInlineResult, Verify, TLocalizationModel, Task> ReceivedInlineResult;
+        public Func<ChosenInlineResult, Verify, TLocalizationModel, Task> OnInlineResult;
 
         /// <summary>
         /// Use this delegate to receive incoming PreCheckoutQuery updates
         /// </summary>
-        public Func<PreCheckoutQuery, Verify, TLocalizationModel, Task> ReceivedPreCheckoutQuery;
+        public Func<PreCheckoutQuery, Verify, TLocalizationModel, Task> OnPreCheckoutQuery;
 
         /// <summary>
         /// Use this delegate to receive incoming ShippingQuery updates
         /// </summary>
-        public Func<ShippingQuery, Verify, TLocalizationModel, Task> ReceivedShippingQuery;
+        public Func<ShippingQuery, Verify, TLocalizationModel, Task> OnShippingQuery;
 
         /// <summary>
         /// Settings for update handling
@@ -75,7 +75,6 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
-        /// <param name="client"></param>
         /// <param name="separator">Separator which will be used to split callback query data.</param>
         public TelegramBotHelper(TelegramBotClient client, in char separator = '~')
         {
@@ -99,7 +98,7 @@ namespace Telegram.Bot.Helper
         {
             var mapper = new LocalizationMapper<TLocalizationModel>(directoryPath);
             foreach (var (key, value) in mapper.GetLocalizationModels())
-                _localizationModels.Add(key, value);
+                _localizationModels.TryAdd(key, value);
         }
 
         /// <summary>
@@ -114,7 +113,7 @@ namespace Telegram.Bot.Helper
             if (_localizationModels.ContainsKey(languageCode))
                 throw new ArgumentException("Localization for this language code already exists.", nameof(languageCode));
 
-            _localizationModels.Add(languageCode, localizationModel ?? throw new ArgumentNullException(nameof(localizationModel)));
+            _localizationModels.TryAdd(languageCode, localizationModel ?? throw new ArgumentNullException(nameof(localizationModel)));
         }
 
         /// <summary>
@@ -126,9 +125,9 @@ namespace Telegram.Bot.Helper
                 q.Enqueue(sniffer);
             else
             {
-                q = new Queue<ISniffer>(1);
+                q = new ConcurrentQueue<ISniffer>();
                 q.Enqueue(sniffer);
-                _sniffers.Add(userId, q);
+                _sniffers.TryAdd(userId, q);
             }
         }
 
@@ -147,40 +146,46 @@ namespace Telegram.Bot.Helper
                 case UpdateType.CallbackQuery:
                     from = update.CallbackQuery.From;
                     break;
+                
                 case UpdateType.ChannelPost:
                     from = update.ChannelPost.From;
                     break;
+                
                 case UpdateType.ChosenInlineResult:
                     from = update.ChosenInlineResult.From;
                     break;
+                
                 case UpdateType.EditedChannelPost:
                     from = update.EditedChannelPost.From;
                     break;
+                
                 case UpdateType.EditedMessage:
                     from = update.EditedMessage.From;
                     break;
+                
                 case UpdateType.InlineQuery:
                     from = update.InlineQuery.From;
                     break;
+                
                 case UpdateType.Message:
                     from = update.Message.From;
                     if (!_sniffers.TryGetValue(from.Id, out var sniffers))
                         break;
-
-                    var sniffer = sniffers.Peek();
-                    if (await sniffer.RunSniffer(update.Message, Client))
-                    {
-                        sniffers.Dequeue();
-                        if (sniffers.Count == 0)
-                            _sniffers.Remove(from.Id);
-                    }
-                    return;
+                    if (sniffers.TryPeek(out var sniffer)
+                        && await sniffer.RunSniffer(update.Message, client)
+                        && sniffers.TryDequeue(out _)
+                        && sniffers.Count == 0)
+                        _sniffers.TryRemove(from.Id, out _);
+                    break;
+                
                 case UpdateType.PreCheckoutQuery:
                     from = update.PreCheckoutQuery.From;
                     break;
+                
                 case UpdateType.ShippingQuery:
                     from = update.ShippingQuery.From;
                     break;
+                
                 default: return;
             }
 
@@ -196,38 +201,23 @@ namespace Telegram.Bot.Helper
 
             switch (update.Type)
             {
-                case UpdateType.EditedMessage when !Settings.IgnoreEditedPrivateMessages:
-                case UpdateType.Message when !Settings.IgnorePrivateMessages:
+                case UpdateType.EditedMessage when !Settings.IgnoreEditedMessages:
+                case UpdateType.Message when !Settings.IgnoreMessages:
                 case UpdateType.ChannelPost when !Settings.IgnoreChannelPosts:
                 case UpdateType.EditedChannelPost when !Settings.IgnoreEditedChannelPosts:
                     {
-                        Message message = update.Type == UpdateType.Message ? update.Message
+                        var message = update.Type == UpdateType.Message ? update.Message
                             : update.Type == UpdateType.EditedMessage ? update.EditedMessage
                             : update.Type == UpdateType.ChannelPost ? update.ChannelPost
                             : update.EditedChannelPost;
-                        
-                        if (message.Type == MessageType.Text && _textMessageCallbacks.Count > 0)
-                        {
-                            var mCb = _textMessageCallbacks.Find(it => it.Message(localizationModel) == message.Text);
 
-                            if (mCb != default)
-                            {
-                                if (mCb.Verified == Verify.Unchecked || mCb.Verified.HasFlag(v))
-                                    await mCb.Callback(message, localizationModel);
-                                return;
-                            }
-                        }
-
-                        foreach (var messageExpressionCallback in _messageExpressionCallbacks)
+                        foreach (var messageHandler in _messageHandlers)
                         {
-                            if (!messageExpressionCallback.Predicate(message))
+                            if (!messageHandler.Predicate(message)
+                                || !messageHandler.Verified.HasFlag(v))
                                 continue;
 
-                            if (messageExpressionCallback.Verified != Verify.Unchecked
-                                && !messageExpressionCallback.Verified.HasFlag(v))
-                                continue;
-
-                            await messageExpressionCallback.Callback(message, localizationModel);
+                            await messageHandler.Callback(message, localizationModel);
                         }
 
                         break;
@@ -235,38 +225,38 @@ namespace Telegram.Bot.Helper
                 case UpdateType.CallbackQuery:
                     {
                         var c = new CallbackQueryCommand(update.CallbackQuery.Data, Separator);
-                        foreach (var callbackQueryFunction in _callbackQueryFunctions)
+                        foreach (var callbackQueryFunction in _callbackQueryHandlers)
                         {
                             if (!c.Equals(callbackQueryFunction.Command))
                                 continue;
 
-                            if (callbackQueryFunction.Verified == Verify.Unchecked || callbackQueryFunction.Verified.HasFlag(v))
+                            if (callbackQueryFunction.Verified.HasFlag(v))
                                 await callbackQueryFunction.Callback(new CallbackQueryInfo(update.CallbackQuery), c.Commands, localizationModel);
                         }
                         break;
                     }
                 case UpdateType.InlineQuery:
                     {
-                        if (ReceivedInlineQuery != null)
-                            await ReceivedInlineQuery(update.InlineQuery, v, localizationModel);
+                        if (OnInlineQuery != null)
+                            await OnInlineQuery(update.InlineQuery, v, localizationModel);
                         break;
                     }
                 case UpdateType.ChosenInlineResult:
                     {
-                        if (ReceivedInlineResult != null)
-                            await ReceivedInlineResult(update.ChosenInlineResult, v, localizationModel);
+                        if (OnInlineResult != null)
+                            await OnInlineResult(update.ChosenInlineResult, v, localizationModel);
                         break;
                     }
                 case UpdateType.PreCheckoutQuery:
                     {
-                        if (ReceivedPreCheckoutQuery != null)
-                            await ReceivedPreCheckoutQuery(update.PreCheckoutQuery, v, localizationModel);
+                        if (OnPreCheckoutQuery != null)
+                            await OnPreCheckoutQuery(update.PreCheckoutQuery, v, localizationModel);
                         break;
                     }
                 case UpdateType.ShippingQuery:
                     {
-                        if (ReceivedShippingQuery != null)
-                            await ReceivedShippingQuery(update.ShippingQuery, v, localizationModel);
+                        if (OnShippingQuery != null)
+                            await OnShippingQuery(update.ShippingQuery, v, localizationModel);
                         break;
                     }
             }
@@ -277,7 +267,7 @@ namespace Telegram.Bot.Helper
         /// </summary>
         public void CallbackQueries(Action<CallbackQueryHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new CallbackQueryHandlerBuilder<TLocalizationModel>(_callbackQueryFunctions, Separator));
+            builder(new CallbackQueryHandlerBuilder<TLocalizationModel>(_callbackQueryHandlers, Separator));
         }
 
         /// <summary>
@@ -293,7 +283,7 @@ namespace Telegram.Bot.Helper
         /// </summary>
         public void MessageExpressions(Action<MessageHandlerBuilder<TLocalizationModel>> builder)
         {
-            builder(new MessageHandlerBuilder<TLocalizationModel>(_messageExpressionCallbacks));
+            builder(new MessageHandlerBuilder<TLocalizationModel>(_messageHandlers));
         }
     }
 }
