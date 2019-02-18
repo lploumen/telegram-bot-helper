@@ -8,12 +8,12 @@ using Telegram.Bot.Types.Enums;
 
 namespace Telegram.Bot.Helper.HandlerBuilders.MessageHandlerBuilders
 {
-    public abstract class MessageHandlerBuilderRule<TLocalizationModel> where TLocalizationModel : class, new()
+    public sealed class MessageHandlerBuilderRule<TLocalizationModel> where TLocalizationModel : class, new()
     {
         private readonly List<MessageHandler<TLocalizationModel>> _expressionList;
         private readonly Func<ChatType, bool> _typePredicate;
 
-        private protected MessageHandlerBuilderBase(
+        internal MessageHandlerBuilderRule(
             List<MessageHandler<TLocalizationModel>> expressionList,
             Func<ChatType, bool> typePredicate)
         {
