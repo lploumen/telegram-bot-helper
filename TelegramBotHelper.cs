@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
@@ -28,7 +28,7 @@ namespace Telegram.Bot.Helper
         /// <summary>
         /// Original instance of telegram client
         /// </summary>
-        public readonly TelegramBotClient Client;
+        private readonly ConcurrentDictionary<string, TelegramBotClient> _clients = new ConcurrentDictionary<string, TelegramBotClient>();
 
         private readonly List<CallbackQueryHandler<TLocalizationModel>> _callbackQueryHandlers = new List<CallbackQueryHandler<TLocalizationModel>>();
         private readonly List<MessageHandler<TLocalizationModel>> _messageHandlers = new List<MessageHandler<TLocalizationModel>>();
@@ -76,10 +76,9 @@ namespace Telegram.Bot.Helper
         /// Create new instance of TelegramBotHelper class.
         /// </summary>
         /// <param name="separator">Separator which will be used to split callback query data.</param>
-        public TelegramBotHelper(TelegramBotClient client, in char separator = '~')
+        public TelegramBotHelper(char separator = '~')
         {
             Separator = separator;
-            Client = client ?? throw new ArgumentNullException(nameof(client));
         }
 
         /// <summary>
@@ -135,9 +134,10 @@ namespace Telegram.Bot.Helper
         /// Process incoming update
         /// </summary>
         /// <param name="update">Incoming update</param>
-        public async Task UpdateReceived(Update update)
+        /// <param name="id">Identifier of TelegramBotClient</param>
+        public async Task UpdateReceived(Update update, string id)
         {
-            if (update == null)
+            if (update == null || !_clients.TryGetValue(id, out var client))
                 return;
             
             User from;
@@ -205,60 +205,43 @@ namespace Telegram.Bot.Helper
                 case UpdateType.Message when !Settings.IgnoreMessages:
                 case UpdateType.ChannelPost when !Settings.IgnoreChannelPosts:
                 case UpdateType.EditedChannelPost when !Settings.IgnoreEditedChannelPosts:
+                    var message = update.Message
+                                  ?? update.EditedMessage
+                                  ?? update.ChannelPost
+                                  ?? update.EditedChannelPost;
+                    foreach (var messageHandler in _messageHandlers)
                     {
-                        var message = update.Type == UpdateType.Message ? update.Message
-                            : update.Type == UpdateType.EditedMessage ? update.EditedMessage
-                            : update.Type == UpdateType.ChannelPost ? update.ChannelPost
-                            : update.EditedChannelPost;
-
-                        foreach (var messageHandler in _messageHandlers)
-                        {
-                            if (!messageHandler.Predicate(message)
-                                || !messageHandler.Verified.HasFlag(v))
-                                continue;
-
-                            await messageHandler.Callback(message, localizationModel);
-                        }
-
-                        break;
+                        if (!messageHandler.Predicate(message) || !messageHandler.Verified.HasFlag(v))
+                            continue;
+                        await messageHandler.Callback(message, localizationModel);
                     }
+                    break;
+                
                 case UpdateType.CallbackQuery:
+                    var query = new CallbackQueryCommand(update.CallbackQuery.Data, Separator);
+                    foreach (var callbackQueryHandler in _callbackQueryHandlers)
                     {
-                        var c = new CallbackQueryCommand(update.CallbackQuery.Data, Separator);
-                        foreach (var callbackQueryFunction in _callbackQueryHandlers)
-                        {
-                            if (!c.Equals(callbackQueryFunction.Command))
-                                continue;
-
-                            if (callbackQueryFunction.Verified.HasFlag(v))
-                                await callbackQueryFunction.Callback(new CallbackQueryInfo(update.CallbackQuery), c.Commands, localizationModel);
-                        }
-                        break;
+                        if (query.Equals(callbackQueryHandler.Command)
+                            && callbackQueryHandler.Verified.HasFlag(v))
+                            await callbackQueryHandler.Callback(new CallbackQueryInfo(update.CallbackQuery), query.Commands, localizationModel);
                     }
-                case UpdateType.InlineQuery:
-                    {
-                        if (OnInlineQuery != null)
-                            await OnInlineQuery(update.InlineQuery, v, localizationModel);
-                        break;
-                    }
-                case UpdateType.ChosenInlineResult:
-                    {
-                        if (OnInlineResult != null)
-                            await OnInlineResult(update.ChosenInlineResult, v, localizationModel);
-                        break;
-                    }
-                case UpdateType.PreCheckoutQuery:
-                    {
-                        if (OnPreCheckoutQuery != null)
-                            await OnPreCheckoutQuery(update.PreCheckoutQuery, v, localizationModel);
-                        break;
-                    }
-                case UpdateType.ShippingQuery:
-                    {
-                        if (OnShippingQuery != null)
-                            await OnShippingQuery(update.ShippingQuery, v, localizationModel);
-                        break;
-                    }
+                    break;
+                
+                case UpdateType.InlineQuery when OnInlineQuery != null:
+                    await OnInlineQuery(update.InlineQuery, v, localizationModel);
+                    break;
+                
+                case UpdateType.ChosenInlineResult when OnInlineResult != null:
+                    await OnInlineResult(update.ChosenInlineResult, v, localizationModel);
+                    break;
+                
+                case UpdateType.PreCheckoutQuery when OnPreCheckoutQuery != null:
+                    await OnPreCheckoutQuery(update.PreCheckoutQuery, v, localizationModel);
+                    break;
+                
+                case UpdateType.ShippingQuery when OnShippingQuery != null:
+                    await OnShippingQuery(update.ShippingQuery, v, localizationModel);
+                    break;
             }
         }
 
